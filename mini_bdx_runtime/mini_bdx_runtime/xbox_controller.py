@@ -6,7 +6,7 @@ import numpy as np
 from mini_bdx_runtime.buttons import Buttons
 
 
-X_RANGE = [-0.15, 0.15]
+X_RANGE = [-0.60, 0.30]
 Y_RANGE = [-0.2, 0.2]
 YAW_RANGE = [-1.0, 1.0]
 
@@ -16,6 +16,8 @@ HEAD_PITCH_RANGE = [-0.78, 0.3]
 HEAD_YAW_RANGE = [-0.5, 0.5]
 HEAD_ROLL_RANGE = [-0.5, 0.5]
 
+XBOX = [0,1,2,3,4,5]
+PS4  = [0,1,3,4,2,5]
 
 class XBoxController:
     def __init__(self, command_freq, only_head_control=False):
@@ -36,6 +38,7 @@ class XBoxController:
         self.B_pressed = False
         self.X_pressed = False
         self.Y_pressed = False
+        self.Options_pressed = False
         self.LB_pressed = False
         self.RB_pressed = False
 
@@ -53,13 +56,15 @@ class XBoxController:
         left_trigger = self.last_left_trigger
         right_trigger = self.last_right_trigger
 
-        l_x = -1 * self.p1.get_axis(0)
-        l_y = -1 * self.p1.get_axis(1)
-        r_x = -1 * self.p1.get_axis(2)
-        r_y = -1 * self.p1.get_axis(3)
+        mapping = PS4
 
-        right_trigger = np.around((self.p1.get_axis(4) + 1) / 2, 3)
-        left_trigger = np.around((self.p1.get_axis(5) + 1) / 2, 3)
+        l_x = -1 * self.p1.get_axis(mapping[0])
+        l_y = -1 * self.p1.get_axis(mapping[1])
+        r_x = -1 * self.p1.get_axis(mapping[2])
+        r_y = -1 * self.p1.get_axis(mapping[3])
+
+        right_trigger = np.around((self.p1.get_axis(mapping[4]) + 1) / 2, 3)
+        left_trigger = np.around((self.p1.get_axis(mapping[5]) + 1) / 2, 3)
 
         if left_trigger < 0.1:
             left_trigger = 0
@@ -126,18 +131,21 @@ class XBoxController:
                 if self.p1.get_button(1):  # B button
                     self.B_pressed = True
 
-                if self.p1.get_button(3):  # X button
+                if self.p1.get_button(2):  # X button
                     self.X_pressed = True
 
-                if self.p1.get_button(4):  # Y button
+                if self.p1.get_button(3):  # Y button
                     self.Y_pressed = True
                     if not self.only_head_control:
                         self.head_control_mode = not self.head_control_mode
 
-                if self.p1.get_button(6):  # LB button
+                if self.p1.get_button(9):  # Options button #5 == R1 #4 == L1 #6 L2 #7 L1 #8 Share #9
+                   self.Options_pressed = True
+
+                if self.p1.get_button(11):  # LB button
                     self.LB_pressed = True
 
-                if self.p1.get_button(7):  # RB button
+                if self.p1.get_button(12):  # RB button
                     self.RB_pressed = True
 
             if event.type == pygame.JOYBUTTONUP:
@@ -145,6 +153,7 @@ class XBoxController:
                 self.B_pressed = False
                 self.X_pressed = False
                 self.Y_pressed = False
+                self.Options_pressed = False
                 self.LB_pressed = False
                 self.RB_pressed = False
 
@@ -161,6 +170,7 @@ class XBoxController:
             self.B_pressed,
             self.X_pressed,
             self.Y_pressed,
+            self.Options_pressed,
             self.LB_pressed,
             self.RB_pressed,
             left_trigger,
@@ -173,6 +183,7 @@ class XBoxController:
         B_pressed = False
         X_pressed = False
         Y_pressed = False
+        Options_pressed = False
         LB_pressed = False
         RB_pressed = False
         up_down = 0
@@ -183,6 +194,7 @@ class XBoxController:
                 B_pressed,
                 X_pressed,
                 Y_pressed,
+                Options_pressed,
                 LB_pressed,
                 RB_pressed,
                 self.last_left_trigger,
@@ -199,6 +211,7 @@ class XBoxController:
             B_pressed,
             X_pressed,
             Y_pressed,
+            Options_pressed,
             LB_pressed,
             RB_pressed,
             up_down == 1,

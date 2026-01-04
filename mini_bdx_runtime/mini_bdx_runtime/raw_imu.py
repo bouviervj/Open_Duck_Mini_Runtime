@@ -9,6 +9,7 @@ from queue import Queue
 from threading import Thread
 import time
 
+from mini_bdx_runtime.filter.realtime_vector_filter import RealTimeVectorFilter
 
 # TODO filter spikes
 class Imu:
@@ -20,6 +21,10 @@ class Imu:
 
         i2c = busio.I2C(board.SCL, board.SDA)
         self.imu = adafruit_bno055.BNO055_I2C(i2c)
+
+        self.filter_gyro = RealTimeVectorFilter(window_size=5, threshold_sigma=2.5)
+        self.filter_linear_accelero = RealTimeVectorFilter(window_size=5, threshold_sigma=2.5)
+        self.filter_gravity = RealTimeVectorFilter(window_size=5, threshold_sigma=2.5)
 
         # self.imu.mode = adafruit_bno055.IMUPLUS_MODE
         # self.imu.mode = adafruit_bno055.ACCGYRO_MODE
@@ -36,7 +41,6 @@ class Imu:
                 adafruit_bno055.AXIS_REMAP_NEGATIVE,
                 adafruit_bno055.AXIS_REMAP_NEGATIVE,
             )
-
         else:
             self.imu.axis_remap = (
                 adafruit_bno055.AXIS_REMAP_Y,
@@ -94,6 +98,10 @@ class Imu:
         self.last_imu_data = {
             "gyro": [0, 0, 0],
             "accelero": [0, 0, 0],
+            "linear_accelero": [0,0,0],
+            "gravity": [0,0,0],
+	    "quat": [0,0,0,0],
+	    "euler": [0,0,0]
         }
         self.imu_queue = Queue(maxsize=1)
         Thread(target=self.imu_worker, daemon=True).start()
@@ -126,30 +134,42 @@ class Imu:
             try:
                 gyro = np.array(self.imu.gyro).copy()
                 accelero = np.array(self.imu.acceleration).copy()
+                linear_accelero = np.array(self.imu.linear_acceleration).copy()
+                gravity = np.array(self.imu.gravity).copy()
+                quaternion = np.array(self.imu.quaternion).copy()
+                euler = np.array(self.imu.euler).copy()
             except Exception as e:
                 print("[IMU]:", e)
                 continue
 
-            if gyro is None or accelero is None:
+            if gyro is None or accelero is None or linear_accelero is None or gravity is None or euler is None or quaternion is None:
                 continue
 
-            if gyro.any() is None or accelero.any() is None:
+            if gyro.any() is None or accelero.any() is None or linear_accelero.any() is None or gravity.any() is None or euler.any() is None or quaternion.any() is None:
                 continue
 
-            accelero[0] -= self.x_offset
+            #accelero[0] -= self.x_offset
+            gravity = -1/9.81 * gravity
+
+            clean_gyro = self.filter_gyro.filter(gyro)
+            clean_linear_accelero = self.filter_linear_accelero.filter(linear_accelero)
+            clean_gravity = self.filter_gravity.filter(gravity)
 
             data = {
-                "gyro": gyro,
+                "gyro": clean_gyro,
                 "accelero": accelero,
+                "linear_accelero": clean_linear_accelero,
+                "gravity": clean_gravity,
+                "quat": quaternion,
+                "euler": euler
             }
-
             self.imu_queue.put(data)
             took = time.time() - s
             time.sleep(max(0, 1 / self.sampling_freq - took))
 
     def get_data(self):
         try:
-            self.last_imu_data = self.imu_queue.get(False)  # non blocking
+           self.last_imu_data = self.imu_queue.get(False)  # non blocking
         except Exception:
             pass
 
@@ -163,5 +183,10 @@ if __name__ == "__main__":
         # print(data)
         print("gyro", np.around(data["gyro"], 3))
         print("accelero", np.around(data["accelero"], 3))
+        print("linear_accelero", np.around(data["linear_accelero"], 3))
+        print("gravity", np.around(data["gravity"],3))
+        print("euler", np.around(data["euler"],3))
+        print("quat", np.around(data["quat"],3))
         print("---")
         time.sleep(1 / 25)
+

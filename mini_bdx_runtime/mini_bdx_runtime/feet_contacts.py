@@ -2,7 +2,7 @@ import board
 import digitalio
 import time
 
-LEFT_FOOT_PIN = board.D22
+LEFT_FOOT_PIN = board.D23
 RIGHT_FOOT_PIN = board.D27
 
 class FeetContacts:

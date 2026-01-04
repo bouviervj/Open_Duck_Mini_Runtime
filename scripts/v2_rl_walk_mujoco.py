@@ -17,6 +17,9 @@ from mini_bdx_runtime.rl_utils import make_action_dict, LowPassActionFilter
 from mini_bdx_runtime.duck_config import DuckConfig
 
 import os
+import serial
+from queue import Queue
+from threading  import Thread
 
 HOME_DIR = os.path.expanduser("~")
 
@@ -27,7 +30,7 @@ class RLWalk:
         onnx_model_path: str,
         duck_config_path: str = f"{HOME_DIR}/duck_config.json",
         serial_port: str = "/dev/ttyACM0",
-        control_freq: float = 50,
+        control_freq: float = 50, # For the IMU
         pid=[30, 0, 0],
         action_scale=0.25,
         commands=False,
@@ -109,16 +112,47 @@ class RLWalk:
         )
 
         # Optional expression features
-        if self.duck_config.eyes:
-            self.eyes = Eyes()
-        if self.duck_config.projector:
-            self.projector = Projector()
-        if self.duck_config.speaker:
-            self.sounds = Sounds(
-                volume=1.0, sound_directory="../mini_bdx_runtime/assets/"
-            )
-        if self.duck_config.antennas:
-            self.antennas = Antennas()
+
+        # !! IMPORTANT !! In our case we are not using those expressions
+	# Instead we will send commands to the serial port for the head
+        # raspberry pi
+
+	#if self.duck_config.eyes:
+        #    self.eyes = Eyes()
+        #if self.duck_config.projector:
+        #    self.projector = Projector()
+        #if self.duck_config.speaker:
+        #    self.sounds = Sounds(
+        #        volume=1.0, sound_directory="../mini_bdx_runtime/assets/"
+        #    )
+        #if self.duck_config.antennas:
+        #    self.antennas = Antennas()
+
+        self.serial = self.init_serial()
+        self.serial_queue = Queue()
+        Thread(target=self.serialThread, daemon=True).start()
+
+    def init_serial(self):
+
+        ser = serial.Serial(
+            port ='/dev/serial0',
+            baudrate = 115200,
+            parity = serial.PARITY_NONE,
+            stopbits = serial.STOPBITS_ONE,
+            bytesize = serial.EIGHTBITS,
+            timeout=1
+        )
+
+        return ser
+
+    def serialThread(self):
+        # Loop wait for a message to transfer out and send it over serial
+        while True:
+          try:
+             message = self.serial_queue.get()
+             self.serial.write(message.encode('utf-8'))
+          except Exception as e:
+             print(f"An error occurred: {e}")
 
     def get_obs(self):
 
@@ -153,10 +187,14 @@ class RLWalk:
 
         feet_contacts = self.feet_contacts.get()
 
+#        print("lin_acceleration:", imu_data["linear_accelero"])
+#        print("gravity",  imu_data["gravity"])
+
         obs = np.concatenate(
             [
                 imu_data["gyro"],
-                imu_data["accelero"],
+                imu_data["linear_accelero"],
+                imu_data["gravity"],
                 cmds,
                 dof_pos - self.init_pos,
                 dof_vel * 0.05,
@@ -228,16 +266,20 @@ class RLWalk:
                         self.phase_frequency_factor = 1.0
 
                     if self.buttons.X.triggered:
-                        if self.duck_config.projector:
-                            self.projector.switch()
+                        message = "TOGGLE FLASH\n\r"
+                        self.serial_queue.put_nowait(message)
 
                     if self.buttons.B.triggered:
-                        if self.duck_config.speaker:
-                            self.sounds.play_random_sound()
+                        message = "PLAY SOUND\n\r"
+                        self.serial_queue.put_nowait(message)
 
-                    if self.duck_config.antennas:
-                        self.antennas.set_position_left(right_trigger)
-                        self.antennas.set_position_right(left_trigger)
+                    if self.buttons.Options.triggered:
+                        message = "EYES\n\r"
+                        self.serial_queue.put_nowait(message)
+
+                    if True:
+                        message = f"ANTENNA POSITION {right_trigger} {left_trigger}\n\r"
+                        self.serial_queue.put_nowait(message)
 
                     if self.buttons.A.triggered:
                         self.paused = not self.paused
@@ -353,7 +395,7 @@ if __name__ == "__main__":
         default=f"{HOME_DIR}/duck_config.json",
     )
     parser.add_argument("-a", "--action_scale", type=float, default=0.25)
-    parser.add_argument("-p", type=int, default=30)
+    parser.add_argument("-p", type=int, default=30) # changed here
     parser.add_argument("-i", type=int, default=0)
     parser.add_argument("-d", type=int, default=0)
     parser.add_argument("-c", "--control_freq", type=int, default=50)
