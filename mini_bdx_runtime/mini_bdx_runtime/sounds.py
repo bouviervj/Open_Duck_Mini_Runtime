@@ -26,13 +26,26 @@ class Sounds:
             print("No sound files found in the directory.")
             self.ok = False
 
-    def play(self, sound_name):
+    def play(self, sound_name, loop = False):
         if not self.ok:
             print("Sounds not initialized properly.")
             return
         if sound_name in self.sounds:
-            self.sounds[sound_name].play()
+            if loop:
+               self.sounds[sound_name].play(-1)
+            else:
+               self.sounds[sound_name].play()
             print(f"Playing: {sound_name}")
+        else:
+            print(f"Sound '{sound_name}' not found!")
+
+    def stop(self, sound_name):
+        if not self.ok:
+            print("Sounds not initialized properly.")
+            return
+        if sound_name in self.sounds:
+            self.sounds[sound_name].stop()
+            print(f"Stopping: {sound_name}")
         else:
             print(f"Sound '{sound_name}' not found!")
 
